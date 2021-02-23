@@ -317,6 +317,12 @@ prop_ambiguous = once $
       result = execParserPure (prefs disambiguate) i ["--ba"]
   in  assertError result (\_ -> property succeeded)
 
+completionValues :: [String] -> [String]
+completionValues ("%value" : v : more) = v : completionValues more
+completionValues (('%':_) : more) = completionValues more
+completionValues (a:_) = error ("Unexpected non-% line in completions: " <> a)
+completionValues [] = []
+
 prop_completion :: Property
 prop_completion = once . ioProperty $
   let p = (,)
@@ -327,7 +333,7 @@ prop_completion = once . ioProperty $
   in case result of
     CompletionInvoked (CompletionResult err) -> do
       completions <- lines <$> err "test"
-      return $ ["--foo", "--bar"] === completions
+      return $ ["--foo", "--bar"] === completionValues completions
     Failure _   -> return $ counterexample "unexpected failure" failed
     Success val -> return $ counterexample ("unexpected result " ++ show val) failed
 
@@ -342,7 +348,7 @@ prop_completion_opt_after_double_dash = once . ioProperty $
                     , "--bash-completion-word", "--"]
   in case result of
     CompletionInvoked (CompletionResult err) -> do
-      completions <- lines <$> err "test"
+      completions <- completionValues . lines <$> err "test"
       return $ ["bar"] === completions
     Failure _   -> return $ counterexample "unexpected failure" failed
     Success val -> return $ counterexample ("unexpected result " ++ show val) failed
@@ -357,7 +363,7 @@ prop_completion_only_reachable = once . ioProperty $
       result = run i ["--bash-completion-index", "0"]
   in case result of
     CompletionInvoked (CompletionResult err) -> do
-      completions <- lines <$> err "test"
+      completions <- completionValues . lines <$> err "test"
       return $ ["reachable"] === completions
     Failure _   -> return $ counterexample "unexpected failure" failed
     Success val -> return $ counterexample ("unexpected result " ++ show val) failed
@@ -374,7 +380,7 @@ prop_completion_only_reachable_deep = once . ioProperty $
                      , "--bash-completion-word", "seen" ]
   in case result of
     CompletionInvoked (CompletionResult err) -> do
-      completions <- lines <$> err "test"
+      completions <- completionValues . lines <$> err "test"
       return $ ["now-reachable"] === completions
     Failure _   -> return $ counterexample "unexpected failure" failed
     Success val -> return $ counterexample ("unexpected result " ++ show val) failed
@@ -389,7 +395,7 @@ prop_completion_multi = once . ioProperty $
                      , "--bash-completion-word", "nope" ]
   in case result of
     CompletionInvoked (CompletionResult err) -> do
-      completions <- lines <$> err "test"
+      completions <- completionValues . lines <$> err "test"
       return $ ["reachable"] === completions
     Failure _   -> return $ counterexample "unexpected failure" failed
     Success val -> return $ counterexample ("unexpected result " ++ show val) failed
@@ -403,7 +409,7 @@ prop_completion_rich = once . ioProperty $
       result = run i ["--bash-completion-enriched", "--bash-completion-index", "0"]
   in case result of
     CompletionInvoked (CompletionResult err) -> do
-      completions <- lines <$> err "test"
+      completions <- completionValues . lines <$> err "test"
       return $ ["--foo\tFo?", "--bar\tBa?"] === completions
     Failure _   -> return $ counterexample "unexpected failure" failed
     Success val -> return $ counterexample ("unexpected result " ++ show val) failed
@@ -420,7 +426,7 @@ prop_completion_rich_lengths = once . ioProperty $
                      , "--bash-completion-command-desc-length=30"]
   in case result of
     CompletionInvoked (CompletionResult err) -> do
-      completions <- lines <$> err "test"
+      completions <- completionValues . lines <$> err "test"
       return $ ["--foo\tFoo...", "--bar\tBar..."] === completions
     Failure _   -> return $ counterexample "unexpected failure" failed
     Success val -> return $ counterexample ("unexpected result " ++ show val) failed
