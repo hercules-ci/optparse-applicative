@@ -167,6 +167,7 @@ bashCompletionQuery pinfo pprefs richness ws i _ = case runCompletion compl ppre
     render_item :: CompletionItem -> [String]
     render_item CompletionItem { ciOptions = opts, ciValue = val } =
       [ "%addspace" | cioAddSpace opts ]
+      ++ [ "%files" | cioFiles opts ]
       ++ ["%value", val]
 
 bashCompletionScript :: String -> String -> IO [String]
@@ -183,7 +184,7 @@ bashCompletionScript prog progn = return
   , "        CMDLINE=(${CMDLINE[@]} --bash-completion-word $arg)"
   , "    done"
   , ""
-  , "    compopt -o nospace"
+  , "    compopt -o nospace +o filenames"
   , "    COMPREPLY=()"
   , "    for ln in $(" ++ prog ++ " \"${CMDLINE[@]}\"); do"
   , "        if $value_mode; then"
@@ -196,6 +197,9 @@ bashCompletionScript prog progn = return
   , "                    ;;"
   , "                %addspace)"
   , "                    compopt +o nospace"
+  , "                    ;;"
+  , "                %files)"
+  , "                    compopt -o filenames"
   , "                    ;;"
   , "            esac"
   , "        fi"
@@ -301,6 +305,7 @@ zshCompletionScript prog progn = return
   , "    fi"
   , "    value_mode=false"
   , "    addspace=false"
+  , "    files=false"
   , "  else"
   , "    case $word in"
   , "      %value)"
@@ -308,6 +313,9 @@ zshCompletionScript prog progn = return
   , "        ;;"
   , "      %addspace)"
   , "        addspace=true"
+  , "        ;;"
+  , "      %files)"
+  , "        files=true"
   , "        ;;"
   , "    esac"
   , "  fi"
