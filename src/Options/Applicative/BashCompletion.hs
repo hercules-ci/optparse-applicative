@@ -20,6 +20,16 @@ import Options.Applicative.Types
 import Options.Applicative.Help.Pretty
 import Options.Applicative.Help.Chunk
 
+-- | Which features are supported by the calling shell
+-- completion integration script
+data Features = Features
+  { richness :: Richness
+  , protocolVersion :: Int
+  }
+
+currentProtocolVerson :: Int
+currentProtocolVerson = 1
+
 -- | Provide basic or rich command completions
 data Richness
   = Standard
@@ -37,6 +47,19 @@ bashCompletionParser pinfo pprefs = complParser
     failure opts = CompletionResult
       { execCompletion = \progn -> unlines <$> opts progn }
 
+    featuresParser :: Parser Features
+    featuresParser = Features <$> richnessParser <*> protocolVersionParser
+
+    protocolVersionParser :: Parser Int
+    protocolVersionParser = option auto (long "optparse-completion-version" <> value 0)
+
+    richnessParser :: Parser Richness
+    richnessParser =
+          flag' Enriched (long "bash-completion-enriched" `mappend` internal)
+                <*> option auto (long "bash-completion-option-desc-length" `mappend` internal `mappend` value 40)
+                <*> option auto (long "bash-completion-command-desc-length" `mappend` internal `mappend` value 40)
+          <|> pure Standard
+
     complParser = asum
       [ failure <$>
         (  bashCompletionQuery pinfo pprefs
@@ -45,14 +68,11 @@ bashCompletionParser pinfo pprefs = complParser
         -- the `desc-length` options.
         -- zsh commands can go on a single line, so they might
         -- want to be longer.
-        <$> ( flag' Enriched (long "bash-completion-enriched" `mappend` internal)
-                <*> option auto (long "bash-completion-option-desc-length" `mappend` internal `mappend` value 40)
-                <*> option auto (long "bash-completion-command-desc-length" `mappend` internal `mappend` value 40)
-          <|> pure Standard
-          )
+        <$> featuresParser
         <*> (many . strOption) (long "bash-completion-word"
                                   `mappend` internal)
-        <*> option auto (long "bash-completion-index" `mappend` internal) )
+        <*> option auto (long "bash-completion-index" `mappend` internal)
+        )
       , failure <$>
           (bashCompletionScript <$>
             strOption (long "bash-completion-script" `mappend` internal))
@@ -64,8 +84,8 @@ bashCompletionParser pinfo pprefs = complParser
             strOption (long "zsh-completion-script" `mappend` internal))
       ]
 
-bashCompletionQuery :: ParserInfo a -> ParserPrefs -> Richness -> [String] -> Int -> String -> IO [String]
-bashCompletionQuery pinfo pprefs richness ws i _ = case runCompletion compl pprefs of
+bashCompletionQuery :: ParserInfo a -> ParserPrefs -> Features -> [String] -> Int -> String -> IO [String]
+bashCompletionQuery pinfo pprefs features ws i _ = case runCompletion compl pprefs of
   Just (Left (SomeParser p, a))
     -> render_items <$> list_options a p
   Just (Right c)
@@ -116,7 +136,7 @@ bashCompletionQuery pinfo pprefs richness ws i _ = case runCompletion compl ppre
     -- When doing enriched completions, add any help specified
     -- to the completion variables (tab separated).
     add_opt_help :: Functor f => Option a -> f String -> f String
-    add_opt_help opt = case richness of
+    add_opt_help opt = case richness features of
       Standard ->
         id
       Enriched len _ ->
@@ -127,7 +147,7 @@ bashCompletionQuery pinfo pprefs richness ws i _ = case runCompletion compl ppre
     -- When doing enriched completions, add the command description
     -- to the completion variables (tab separated).
     add_cmd_help :: Functor f => (String -> Maybe (ParserInfo a)) -> f String -> f String
-    add_cmd_help p = case richness of
+    add_cmd_help p = case richness features of
       Standard ->
         id
       Enriched _ len ->
@@ -165,6 +185,8 @@ bashCompletionQuery pinfo pprefs richness ws i _ = case runCompletion compl ppre
     render_items = concatMap render_item
 
     render_item :: CompletionItem -> [String]
+    render_item CompletionItem { ciValue = val }
+      | protocolVersion features < 1 = [val]
     render_item CompletionItem { ciOptions = opts, ciValue = val } =
       [ "%addspace" | cioAddSpace opts ]
       ++ [ "%files" | cioFiles opts ]
@@ -178,7 +200,7 @@ bashCompletionScript prog progn = return
   , "    local CMDLINE"
   , "    local value_mode=false"
   , "    local IFS=$'\\n'"
-  , "    CMDLINE=(--bash-completion-index $COMP_CWORD)"
+  , "    CMDLINE=(--bash-completion-index $COMP_CWORD --optparse-completion-version " ++ show currentProtocolVerson ++ ")"
   , ""
   , "    for arg in ${COMP_WORDS[@]}; do"
   , "        CMDLINE=(${CMDLINE[@]} --bash-completion-word $arg)"
@@ -233,7 +255,7 @@ fishCompletionScript prog progn = return
   , "    # Hack around fish issue #3934"
   , "    set -l cn (commandline --tokenize --cut-at-cursor --current-process)"
   , "    set -l cn (count $cn)"
-  , "    set -l tmpline --bash-completion-enriched --bash-completion-index $cn"
+  , "    set -l tmpline --bash-completion-enriched --bash-completion-index $cn --optparse-completion-version " ++ show currentProtocolVerson
   , "    for arg in $cl"
   , "      set tmpline $tmpline --bash-completion-word $arg"
   , "    end"
@@ -274,7 +296,7 @@ zshCompletionScript prog progn = return
   , "local files=false"
   , "local index=$((CURRENT - 1))"
   , ""
-  , "request=(--bash-completion-enriched --bash-completion-index $index)"
+  , "request=(--bash-completion-enriched --bash-completion-index $index --optparse-completion-version " ++ show currentProtocolVerson ++ ")"
   , "for arg in ${words[@]}; do"
   , "  request=(${request[@]} --bash-completion-word $arg)"
   , "done"
