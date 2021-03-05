@@ -119,7 +119,7 @@ bashCompletionQuery pinfo pprefs features ws i _ = case runCompletion compl ppre
     --
     -- For options and flags, ensure that the user
     -- hasn't disabled them with `--`.
-    opt_completions :: forall a. ArgPolicy -> ArgumentReachability -> Option a -> IO [String]
+    opt_completions :: forall a. ArgPolicy -> ArgumentReachability -> Option a -> IO [CompletionItem]
     opt_completions argPolicy reachability opt = case optMain opt of
       OptReader ns _ _
          | argPolicy /= AllPositionals
@@ -128,7 +128,7 @@ bashCompletionQuery pinfo pprefs features ws i _ = case runCompletion compl ppre
         -> return []
       BiOptReader ns _ _ _
          | argPolicy /= AllPositionals
-        -> return . add_opt_help opt $ show_names ns
+        -> return . fmap legacyCompletionItem . add_opt_help opt $ show_names ns
          | otherwise
         -> return []
       MapReader _f optr -> opt_completions argPolicy reachability (opt { optMain = optr })
