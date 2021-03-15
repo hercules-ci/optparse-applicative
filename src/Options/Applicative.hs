@@ -76,6 +76,7 @@ module Options.Applicative (
   abortOption,
   infoOption,
   helper,
+  helperWith,
 
   -- ** Modifiers
   --
