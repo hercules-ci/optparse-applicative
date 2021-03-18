@@ -52,8 +52,7 @@ helper =
   helperWith (mconcat [
     long "help",
     short 'h',
-    help "Show this help text",
-    hidden
+    help "Show this help text"
   ])
 
 -- | Like helper, but with a minimal set of modifiers that can be extended
@@ -74,6 +73,7 @@ helperWith modifiers =
         metavar "",
         noGlobal,
         noArgError (ShowHelpText Nothing),
+        hidden,
         modifiers
       ]
   where
